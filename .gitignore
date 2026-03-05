@@ -36,3 +36,4 @@ checkpoint.json
 state.json
 sandbox_test.py
 tests/
+output/
