@@ -17,7 +17,7 @@ def run_fetch_data():
     settings = load_settings()
     token = get_token()
 
-    page, last_id = load_checkpoint()  # ✅ fixed
+    page, last_id = load_checkpoint() 
 
     total_processed = 0
     all_excel_rows = []
@@ -45,7 +45,6 @@ def run_fetch_data():
 
         total_processed += len(excel_rows)
 
-        # ✅ save both page and last_id
         current_last_id = excel_rows[-1]["id"] if excel_rows else last_id
         save_checkpoint(next_page or page, current_last_id)
 
@@ -57,17 +56,6 @@ def run_fetch_data():
             break
 
         page = next_page
-
-    # dedup
-    seen = set()
-    unique_rows = []
-    for row in all_excel_rows:
-        if row["id"] not in seen:
-            seen.add(row["id"])
-            unique_rows.append(row)
-
-    logger.info(f"🧹 Removed {len(all_excel_rows) - len(unique_rows)} duplicates")
-    all_excel_rows = unique_rows
 
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(all_excel_rows, f, indent=2, ensure_ascii=False)

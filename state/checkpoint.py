@@ -10,7 +10,7 @@ def save_checkpoint(page: int, last_id: int):
 
 def load_checkpoint():
     if not CHECKPOINT_FILE.exists():
-        return 1, None  # page, last_id
+        return 1, None 
     with open(CHECKPOINT_FILE, "r") as f:
         data = json.load(f)
     return data.get("page", 1), data.get("last_id", None)

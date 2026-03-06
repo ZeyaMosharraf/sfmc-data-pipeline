@@ -22,7 +22,7 @@ def get_sfmc_session() -> requests.Session:
             total=5,
             backoff_factor=1,
             status_forcelist=[429, 500, 502, 503, 504],
-            allowed_methods=["HEAD", "GET", "POST", "OPTIONS"]  # POST needed for fetch() and get_token()
+            allowed_methods=["HEAD", "GET", "POST", "OPTIONS"] 
         )
         adapter = HTTPAdapter(max_retries=retry_strategy)
         _session.mount("https://", adapter)
