@@ -6,6 +6,9 @@ sfmc_properties = [
 ]
 
 sfmc_html_properties = [
-    "name",                         
-    "views.html.content"           
+    "id",
+    "name",
+    "views.html.content",   
+    "views.html.slots",         
 ]
+

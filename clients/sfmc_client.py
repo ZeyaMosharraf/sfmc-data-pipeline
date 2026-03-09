@@ -30,7 +30,7 @@ def get_sfmc_session() -> requests.Session:
     return _session
 
 def get_credentials():
-    """Load and cache credentials once to avoid repeated .env reads per page."""
+
     global _credentials
     if _credentials is not None:
         return _credentials
@@ -57,13 +57,14 @@ def get_credentials():
     return _credentials
 
 def get_token():
-    """Return a cached token, refreshing it 60 seconds before expiry."""
+
     global _token, _token_expiry
 
     if _token and time.time() < _token_expiry - 60:
         return _token
 
     client_id, client_secret, subdomain, page_size = get_credentials()
+    
     session = get_sfmc_session()
 
     url = f"https://{subdomain}.auth.marketingcloudapis.com/v2/token"
@@ -78,19 +79,27 @@ def get_token():
         timeout=30
     )
     r.raise_for_status()
+
     data = r.json()
+
     _token = data["access_token"]
+
     expires_in = data.get("expires_in", 1200)
+
     _token_expiry = time.time() + expires_in
+
     logger.info("🔑 Token refreshed, valid for %ss", expires_in)
+
     return _token
 
 def fetch(token, page=1):
+
     client_id, client_secret, subdomain, page_size = get_credentials()
 
     session = get_sfmc_session()
 
     url = f"https://{subdomain}.rest.marketingcloudapis.com/asset/v1/content/assets/query"
+
     headers = {"Authorization": f"Bearer {token}"}
 
     payload = {
@@ -114,9 +123,13 @@ def fetch(token, page=1):
     )
 
     logger.info(f"Response status: {r.status_code} — page {page}")
+    
     if r.status_code != 200:
         logger.error(f"❌ Error response: {r.json()}")
     r.raise_for_status()
+
     items = r.json().get("items", [])
+
     next_page = page + 1 if len(items) == int(page_size) else None
+
     return items, next_page
