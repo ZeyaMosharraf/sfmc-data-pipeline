@@ -9,26 +9,26 @@
 |---|---|
 | **Industry** | Digital Marketing Agency (B2B & Franchise) |
 | **Platform** | Salesforce Marketing Cloud (SFMC) |
-| **Problem** | No native way to bulk-export Content Builder assets with structured metadata |
-| **Solution** | Automated Python pipeline using SFMC REST API to extract, transform and save all assets |
-| **Records Extracted** | 4,277 assets |
-| **Pages Fetched** | 86 pages |
-| **Time to Complete** | ~13 minutes |
-| **Duplicates Found** | 0 |
-| **Next Step** | CRM Migration Pipeline |
+| **Problem** | Client shutting down SFMC account — all historical content assets at risk of permanent loss |
+| **Solution** | Automated Python pipeline using SFMC REST API to extract, transform and preserve all assets before shutdown |
+| **Throughput** | ~5.4 records/second |
+| **Avg Page Time** | ~9 seconds/page |
+| **Output** | Structured JSON + Excel ready for migration or archiving |
 
 ---
 
 ## Business Problem
 
-Salesforce Marketing Cloud (SFMC) does not provide a built-in export tool for Content Builder assets. Marketing and operations teams had no efficient way to:
+The client made the decision to shut down their Salesforce Marketing Cloud account. This created an immediate risk of permanent data loss — years of email content assets including subject lines, preheaders, and full HTML content would become inaccessible once the account was closed.
 
-- Audit all email assets (subject lines, preheaders, HTML content) at scale
-- Extract structured metadata from thousands of assets
-- Migrate content from SFMC to another CRM or platform
-- Identify duplicate, outdated or unused assets across the account
+The challenge was that SFMC does not provide a native bulk export tool for either Content Builder assets or email send tracking data. There was no built-in way to:
 
-This created a bottleneck for any data migration, content auditing, or platform transition project.
+- Extract all content assets with structured metadata at scale
+- Preserve email content (subject lines, preheaders, HTML) before account closure
+- Extract complete email send history (Job IDs, send stats, bounce rates, open rates) via SOAP API
+- Produce a clean, structured output ready for archiving or migration to another platform
+
+Manual export was not a viable option given the volume of assets and the time constraint of the account shutdown deadline. An automated extraction pipeline was the only reliable solution.
 
 ---
 
@@ -45,7 +45,7 @@ Built a fully automated Python data pipeline that:
 ### Pipeline Flow
 
 ```
-SFMC API → Authentication → Paginated Fetch → Transform → Checkpoint → JSON Output
+SFMC API → Authentication → Paginated Fetch → Transform → Checkpoint → JSON Output → Excel Export
 ```
 
 ### Project Structure
@@ -55,7 +55,8 @@ sfmc-data-pipeline/
 ├── main.py                  # Entry point — orchestrates fetch, transform, save
 ├── clients/
 │   ├── __init__.py
-│   └── sfmc_client.py       # SFMC API client — auth token + POST fetch
+│   ├── sfmc_client.py       # REST — Content Builder assets (OAuth2 + POST query)
+│   └── sfmc_soap_client.py  # SOAP — Email send tracking (Job IDs, send stats)
 ├── config/
 │   ├── __init__.py
 │   ├── settings.py          # Loads environment variables
@@ -70,8 +71,7 @@ sfmc-data-pipeline/
 ├── utils/
 │   ├── __init__.py
 │   └── logger.py            # Centralized logging setup
-├── output/
-│   └── sfmc_assets.json     # Final output (auto-generated)
+├── output/                  # Auto-generated — not committed to version control
 ├── .env                     # Environment variables (not committed)
 ├── requirements.txt
 └── README.md
@@ -85,8 +85,9 @@ sfmc-data-pipeline/
 |---|---|
 | **Python** | Core pipeline development |
 | **REST API Integration** | SFMC Content Builder API (POST query endpoint) |
+| **SOAP API Integration** | SFMC Email Send Tracking (Job IDs, send stats, bounce rates) |
 | **OAuth2 Authentication** | SFMC client credentials token flow |
-| **Pagination Handling** | 86 pages × 50 records, with smart stop logic |
+| **Pagination Handling** | Smart stop logic using total count from API response |
 | **JSON Transformation** | Nested JSON flattening with dot notation paths |
 | **Checkpoint & Resume** | Fault-tolerant pipeline with page + last_id state |
 | **Logging** | Structured per-page logging with timestamps |
@@ -96,32 +97,29 @@ sfmc-data-pipeline/
 
 ## Results & Business Impact
 
-- ✅ **4,277 assets** successfully extracted with zero data loss
+- ✅ **Zero data loss** — all assets extracted and preserved before account shutdown
+- ✅ **~5.4 records/second throughput** — scalable estimate for any account size
 - ✅ **Fault-tolerant** — pipeline resumes from exact crash point, no re-fetching
-- ✅ **Structured output** — flat JSON ready for Excel, database, or CRM import
+- ✅ **Structured output** — flat JSON ready for Excel, database, or platform migration
 - ✅ **Subject lines and preheaders** captured for all email assets
-- ✅ **HTML content** available for full email body migration
-- ✅ **13 minutes** to extract the full account — fully automated, no manual effort
+- ✅ **HTML content** preserved for full email body migration
+- ✅ **Fully automated** — no manual effort required
 
-### Business Recommendation
-
-Any digital marketing agency managing large SFMC accounts should have an automated extraction layer. Manual exports are error-prone, incomplete, and not scalable. This pipeline provides a reliable foundation for:
-
-- Content audits
-- Platform migrations
-- Asset reporting
-- Compliance and archiving
+> **Throughput estimate:** To calculate expected run time for any account size — divide total record count by 5.4 to get approximate seconds.
 
 ---
 
-## Next Steps
+## Next Steps & Reusability
 
-1. **CRM Migration** — Adapt pipeline to push extracted assets directly into a target CRM (e.g. HubSpot, Salesforce CRM)
-2. **Excel Export** — Convert JSON output to formatted `.xlsx` for stakeholder reporting
-3. **Email-Only Filter** — Filter assets by `assetType` to isolate only email records
-4. **HTML Content Extraction** — Parse and store full email HTML separately for content migration
-5. **Scheduling** — Add cron job or scheduler to run pipeline incrementally on a regular basis
-6. **Multi-Account Support** — Extend to support multiple SFMC business units
+This pipeline was built for a one-time data migration before account shutdown. However the architecture is intentionally designed to be reusable — swapping credentials in `.env` is all that's needed to run it against any SFMC account.
+
+Planned extensions for future client work:
+
+1. **SOAP API Pipeline** — Extract email send tracking data (Job IDs, send stats, bounce rates) via SFMC SOAP API — already in development as a companion pipeline
+2. **Target Platform Loader** — Push extracted JSON directly into BigQuery, HubSpot, or Salesforce CRM without rewriting the extraction layer
+3. **Email-Only Filter** — Filter assets by `assetType` to isolate email records only
+4. **Multi-Account Support** — Pass account credentials dynamically to run across multiple SFMC business units
+5. **Incremental Sync** — Adapt checkpoint system to support scheduled incremental pulls instead of one-time full extraction
 
 ---
 
@@ -139,7 +137,7 @@ pip install -r requirements.txt
 CLIENT_ID=your_sfmc_client_id
 CLIENT_SECRET=your_sfmc_client_secret
 SUBDOMAIN=your_sfmc_subdomain
-PAGE_SIZE=50
+PAGE_SIZE=100
 ```
 
 ### 3. Run
@@ -150,7 +148,7 @@ python main.py
 
 ### 4. Resume after crash
 
-Just re-run the same command — checkpoint handles the rest:
+Just re-run the same command — checkpoint handles the rest automatically:
 
 ```bash
 python main.py
@@ -161,5 +159,5 @@ python main.py
 ## Security
 
 - `.env` file is never committed to version control
-- Add `.env` to `.gitignore`
+- `output/` folder is excluded from version control — contains client data
 - SFMC tokens auto-refresh on expiry
