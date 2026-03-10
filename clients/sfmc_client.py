@@ -63,7 +63,7 @@ def get_token():
     if _token and time.time() < _token_expiry - 60:
         return _token
 
-    client_id, client_secret, subdomain, page_size = get_credentials()
+    client_id, client_secret, subdomain, _ = get_credentials()
     
     session = get_sfmc_session()
 
@@ -94,7 +94,7 @@ def get_token():
 
 def fetch(token, page=1):
 
-    client_id, client_secret, subdomain, page_size = get_credentials()
+    _, _, subdomain, page_size = get_credentials()
 
     session = get_sfmc_session()
 
