@@ -1,4 +1,3 @@
-import requests
 import xml.etree.ElementTree as ET
 from clients.sfmc_client import get_credentials, get_token, get_sfmc_session
 from config.sfmc_columns import sfmc_soap_properties
