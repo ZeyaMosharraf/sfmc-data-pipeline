@@ -3,7 +3,7 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 def soap_extract(rows: list[dict]) -> list[dict]:
-    extracted = []
+    soap_extracted = []
     for row in rows:
         clean_row ={}
         for key, value in row.items():
@@ -12,6 +12,6 @@ def soap_extract(rows: list[dict]) -> list[dict]:
             elif isinstance(value, str):
                 clean = value.strip()
                 clean_row[key] = clean if clean else None
-            extracted.append(clean_row)
-        logger.info(f'Extracted {len(extracted)} records')
-        return extracted
+        soap_extracted.append(clean_row)
+    logger.info(f'Extracted {len(soap_extracted)} records')
+    return soap_extracted
