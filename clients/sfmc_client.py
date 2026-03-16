@@ -92,7 +92,7 @@ def get_token():
 
     return _token
 
-def fetch(token, page=1):
+def rest_fetch(token, page=1):
 
     _, _, subdomain, page_size = get_credentials()
 

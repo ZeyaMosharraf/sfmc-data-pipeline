@@ -1,20 +1,21 @@
 import json
 from pathlib import Path
 
-CHECKPOINT_FILE = Path("state/checkpoint.json")
+def save_checkpoint(filename: str, data: dict):
+    path = Path(f"state/{filename}")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w") as f:
+        json.dump(data, f)
 
-def save_checkpoint(page: int, last_id: int):
-    CHECKPOINT_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with open(CHECKPOINT_FILE, "w") as f:
-        json.dump({"page": page, "last_id": last_id}, f)
-
-def load_checkpoint():
-    if not CHECKPOINT_FILE.exists():
-        return 1, None 
-    with open(CHECKPOINT_FILE, "r") as f:
+def load_checkpoint(filename:str) -> dict:
+    path = Path(f"state/{filename}")
+    if not path.exists():
+        return None 
+    with open(path, "r") as f:
         data = json.load(f)
-    return data.get("page", 1), data.get("last_id", None)
+    return data
 
-def clear_checkpoint():
-    if CHECKPOINT_FILE.exists():
-        CHECKPOINT_FILE.unlink()
+def clear_checkpoint(filename:str):
+    path =Path(f"state/{filename}")
+    if path.exists():
+        path.unlink()
