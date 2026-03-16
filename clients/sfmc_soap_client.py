@@ -27,6 +27,9 @@ def build_soap_request(continue_request: str = None) -> str:
         <RetrieveRequestMsg xmlns="{SOAP_NS}">
             <RetrieveRequest>
                 <ObjectType>Send</ObjectType>
+                <Options>
+                    <BatchSize>2500</BatchSize>
+                </Options>
                 {properties_xml}
             </RetrieveRequest>
         </RetrieveRequestMsg>"""
@@ -55,7 +58,8 @@ def parse_soap_response(xml_text: str) -> tuple[list[dict], str | None, bool]:
     has_more = overall_status == "MoreDataAvailable"
 
     results = []
-    for result in root.findall(".//et:Results", namespaces=ns):
+    body = root.find(".//et:RetrieveResponseMsg", namespaces=ns)
+    for result in body.findall("et:Results", namespaces=ns):
         row = {}
         for prop in sfmc_soap_properties:
             tag = prop.replace(".", "_")
@@ -67,7 +71,7 @@ def parse_soap_response(xml_text: str) -> tuple[list[dict], str | None, bool]:
     return results, request_id, has_more
 
 
-def fetch(continue_request: str = None) -> tuple[list[dict], str | None, bool]:
+def soap_fetch(continue_request: str = None) -> tuple[list[dict], str | None, bool]:
     _, _, subdomain, _ = get_credentials()
     session = get_sfmc_session()
 
