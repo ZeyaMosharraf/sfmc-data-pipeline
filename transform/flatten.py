@@ -5,14 +5,25 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-INPUT_FILE = Path("output/sfmc_assets.json")
-OUTPUT_FILE = Path("output/sfmc_assets.csv")
+INPUT_FILE = Path("output/sfmc_soap.json")
+OUTPUT_FILE = Path("output/sfmc_email_tracking.csv")
 
 COLUMN_MAP = {
-    "id": "ID",
-    "name": "Name",
-    "views.subjectline.content": "Subject Line",
-    "views.preheader.content": "Preheader",
+    "ID": "ID",
+    "EmailName": "Email Name",
+    "Subject": "Subject",
+    "Status": "Status",
+    "SendDate": "Send Date",
+    "SentDate": "Sent Date",
+    "FromName": "From Name",
+    "FromAddress": "From Address",
+    "NumberSent": "Number Sent",
+    "NumberDelivered": "Number Delivered",
+    "UniqueOpens": "Unique Opens",
+    "UniqueClicks": "Unique Clicks",
+    "HardBounces": "Hard Bounces",
+    "SoftBounces": "Soft Bounces",
+    "Unsubscribes": "Unsubscribes"
 }
 
 def flatten():

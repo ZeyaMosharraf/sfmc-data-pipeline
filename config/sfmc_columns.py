@@ -9,7 +9,7 @@ sfmc_html_properties = [
     "id",
     "name",
     "views.html.content",   
-    "views.html.slots",         
+    "views.html.slots"        
 ]
 
 sfmc_soap_properties = [
@@ -27,5 +27,5 @@ sfmc_soap_properties = [
     "UniqueClicks",
     "HardBounces",
     "SoftBounces",
-    "Unsubscribes",
+    "Unsubscribes"
 ]
