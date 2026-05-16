@@ -1,165 +1,109 @@
 # SFMC Data Extraction Pipeline
-### API Data Extraction Pipeline | Python ETL & System Integration
+
+Python data extraction project for Salesforce Marketing Cloud (SFMC), with two independent pipelines:
+
+1. **REST pipeline** for Content Builder asset extraction (subject, preheader, HTML content).
+2. **SOAP pipeline** for Send tracking extraction (delivery and engagement metrics).
+
+This project is designed for large exports before account decommissioning, with resume support through checkpoint files.
 
 ---
 
-## Executive Summary
+## What this project does
 
-| | |
-|---|---|
-| **Type** | Data Engineering & API Integration |
-| **Platform** | Salesforce Marketing Cloud (SFMC) |
-| **Problem** | Client shutting down SFMC account — all historical data at risk of permanent loss |
-| **Solution** | Two automated Python pipelines extracting Content Builder assets (REST) and email send tracking data (SOAP) before shutdown |
-| **REST Throughput** | ~5.4 records/second |
-| **SOAP Throughput** | ~146 records/second |
-| **Output** | Structured JSON + Excel ready for migration or archiving |
+### REST pipeline (Content Builder)
+- Authenticates with SFMC OAuth2 (client credentials).
+- Calls `/asset/v1/content/assets/query` in paginated mode.
+- Extracts selected fields into flattened JSON rows.
+- Writes incremental output to `output/sfmc_html.json`.
+- Saves resume state in `state/rest_checkpoint.json` (`page`, `last_id`).
 
----
-
-## Business Problem
-
-The client made the decision to shut down their Salesforce Marketing Cloud account. This created an immediate risk of permanent data loss — years of email content assets and historical send tracking data would become inaccessible once the account was closed.
-
-The challenge was that SFMC does not provide a native bulk export tool for either Content Builder assets or email send tracking data. There was no built-in way to:
-
-- Extract all content assets with structured metadata at scale
-- Preserve email content (subject lines, preheaders, HTML) before account closure
-- Extract complete email send history (Job IDs, send stats, bounce rates, open rates) via SOAP API
-- Produce a clean, structured output ready for archiving or migration to another platform
-
-Manual export was not a viable option given the volume of assets and the time constraint of the account shutdown deadline. An automated extraction pipeline was the only reliable solution.
+### SOAP pipeline (Send tracking)
+- Reuses OAuth token flow.
+- Calls SOAP `Retrieve` on `Send` object.
+- Continues batch retrieval via `ContinueRequest` / `RequestID`.
+- Writes incremental output to `output/sfmc_soap.json`.
+- Saves resume state in `state/soap_checkpoint.json` (`request_id`).
 
 ---
 
-## Solution & Methodology
+## Project structure
 
-Built two fully automated Python data pipelines sharing a common architecture:
-
-**Pipeline 1 — Content Builder Assets (REST API):**
-1. **Authenticates** with SFMC using OAuth2 client credentials flow
-2. **Fetches** all assets page by page via the POST query endpoint (`/asset/v1/content/assets/query`)
-3. **Transforms** raw nested JSON into flat structured rows
-4. **Saves** output incrementally to JSON after each page
-5. **Checkpoints** progress using universal checkpoint system — resumes automatically if interrupted
-
-**Pipeline 2 — Email Send Tracking (SOAP API):**
-1. **Authenticates** using the same OAuth2 token reused from Pipeline 1
-2. **Fetches** all send records in batches via SOAP `Send` object
-3. **Transforms** raw XML response into clean flat dicts
-4. **Saves** output incrementally to JSON after each batch
-5. **Checkpoints** progress using `RequestID` — resumes automatically if interrupted
-
-### Pipeline Flow
-
-```
-REST:  SFMC REST API → Auth → Paginated Fetch → Transform → Checkpoint → JSON → Excel
-SOAP:  SFMC SOAP API → Auth → Batch Fetch (ContinueRequest) → Transform → Checkpoint → JSON → Excel
-```
-
-### Project Structure
-
-```
+```text
 sfmc-data-pipeline/
-├── main.py                  # Entry point — run_fetch_rest_data() + run_fetch_soap_data()
+├── main.py
 ├── clients/
-│   ├── __init__.py
-│   ├── sfmc_client.py       # REST — Content Builder assets (OAuth2 + POST query)
-│   └── sfmc_soap_client.py  # SOAP — Email send tracking (XML request builder + parser)
+│   ├── sfmc_client.py
+│   └── sfmc_soap_client.py
 ├── config/
-│   ├── __init__.py
-│   ├── settings.py          # Loads environment variables
-│   └── sfmc_columns.py      # Defines fields to extract for both pipelines
+│   ├── settings.py
+│   └── sfmc_columns.py
 ├── state/
-│   ├── __init__.py
-│   └── checkpoint.py        # Universal checkpoint — supports any pipeline via filename + dict
+│   └── checkpoint.py
 ├── transform/
-│   ├── __init__.py
-│   ├── extract.py           # REST — transforms raw JSON items into flat rows
-│   ├── soap_extract.py      # SOAP — cleans and flattens XML response rows
-│   └── flatten.py           # Helper to flatten nested JSON fields
+│   ├── extract.py
+│   ├── soap_extract.py
+│   └── flatten.py
 ├── utils/
-│   ├── __init__.py
-│   └── logger.py            # Centralized logging setup
-├── output/                  # Auto-generated — not committed to version control
-├── .env                     # Environment variables (not committed)
+│   └── logger.py
+├── output/
 ├── requirements.txt
 └── README.md
 ```
 
 ---
 
-## Skills & Technologies
+## Requirements
 
-| Skill | Usage |
-|---|---|
-| **Python** | Core pipeline development |
-| **REST API Integration** | SFMC Content Builder API (POST query endpoint) |
-| **SOAP API Integration** | SFMC Email Send Tracking via XML `Send` object |
-| **OAuth2 Authentication** | SFMC client credentials token flow — reused across both pipelines |
-| **Pagination Handling** | REST: smart stop via total count — SOAP: ContinueRequest with RequestID |
-| **XML Parsing** | `xml.etree.ElementTree` with namespace handling |
-| **JSON Transformation** | Nested JSON flattening with dot notation paths |
-| **Universal Checkpoint** | Filename + dict pattern — supports REST (page + last_id) and SOAP (request_id) |
-| **Logging** | Structured per-batch logging with timestamps and throughput metrics |
-| **Environment Config** | `.env` based secrets management |
+- Python 3.10+ (recommended)
+- SFMC API package with:
+  - REST access for Content Builder assets
+  - SOAP access for Send object retrieval
 
----
-
-## Results & Business Impact
-
-- ✅ **Zero data loss** — all assets and send history extracted before account shutdown
-- ✅ **REST pipeline: ~5.4 records/second** — Content Builder assets
-- ✅ **SOAP pipeline: ~146 records/second** — Email send tracking data
-- ✅ **Fault-tolerant** — both pipelines resume from exact crash point automatically
-- ✅ **Structured output** — flat JSON ready for Excel, database, or platform migration
-- ✅ **Subject lines, preheaders and HTML** captured for all email assets
-- ✅ **Full send history** preserved — Job IDs, send stats, bounces, opens, clicks
-- ✅ **Fully automated** — no manual effort required
-
-> **Throughput estimate:** REST — divide total record count by 5.4 to get approximate seconds. SOAP — divide by 146.
-
----
-
-## Next Steps & Reusability
-
-This pipeline was built for a one-time data migration before account shutdown. However the architecture is intentionally designed to be reusable — swapping credentials in `.env` is all that's needed to run it against any SFMC account.
-
-Planned extensions for future client work:
-
-1. **Target Platform Loader** — Push extracted JSON directly into BigQuery, HubSpot, or Salesforce CRM without rewriting the extraction layer
-2. **Email-Only Filter** — Filter assets by `assetType` to isolate email records only
-3. **Multi-Account Support** — Pass account credentials dynamically to run across multiple SFMC business units
-4. **Incremental Sync** — Adapt checkpoint system to support scheduled incremental pulls instead of one-time full extraction
-
----
-
-## Setup & Usage
-
-### 1. Install dependencies
+Install dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. Configure `.env`
+---
+
+## Environment configuration
+
+Create a `.env` file in repository root:
 
 ```env
-CLIENT_ID=your_sfmc_client_id
-CLIENT_SECRET=your_sfmc_client_secret
-SUBDOMAIN=your_sfmc_subdomain
+SFMC_CLIENT_ID=your_client_id
+SFMC_CLIENT_SECRET=your_client_secret
+SFMC_SUBDOMAIN=your_subdomain
 PAGE_SIZE=100
 ```
 
-### 3. Run
+> `settings.py` expects exactly these variable names.
 
-```bash
-python main.py
+---
+
+## How to run
+
+This repo currently uses a **manual switch in `main.py`**.
+
+At the bottom of `main.py`, choose one:
+
+```python
+if __name__ == "__main__":
+    run_fetch_rest_data()   # REST
+    # run_fetch_soap_data() # SOAP
 ```
 
-### 4. Resume after crash
+or
 
-Just re-run the same command — checkpoint handles the rest automatically:
+```python
+if __name__ == "__main__":
+    # run_fetch_rest_data() # REST
+    run_fetch_soap_data()   # SOAP
+```
+
+Then run:
 
 ```bash
 python main.py
@@ -167,8 +111,65 @@ python main.py
 
 ---
 
-## Security
+## Output files
 
-- `.env` file is never committed to version control
-- `output/` folder is excluded from version control — contains client data
-- SFMC tokens auto-refresh on expiry
+- `output/sfmc_html.json`: REST extracted asset content data.
+- `output/sfmc_soap.json`: SOAP extracted send tracking data.
+
+All writes are incremental per page/batch so long-running jobs are recoverable.
+
+---
+
+## Checkpoint and resume behavior
+
+### REST
+- Checkpoint file: `state/rest_checkpoint.json`
+- Keys:
+  - `page`: next page to fetch
+  - `last_id`: last processed asset ID
+
+### SOAP
+- Checkpoint file: `state/soap_checkpoint.json`
+- Keys:
+  - `request_id`: SFMC continue token for next SOAP batch
+
+If the process stops unexpectedly, re-run `python main.py` with the same selected pipeline; it resumes from checkpoint.
+
+---
+
+## Common troubleshooting
+
+### 1. `TypeError: load_checkpoint() missing 1 required positional argument: 'filename'`
+Cause: `load_checkpoint()` called without filename.
+Fix: always call with explicit file, e.g.:
+
+```python
+checkpoint = load_checkpoint("rest_checkpoint.json")
+```
+
+### 2. Authentication failures (401/403)
+- Check `.env` values.
+- Confirm package permissions in SFMC.
+- Confirm `SFMC_SUBDOMAIN` is correct.
+
+### 3. Empty or partial output
+- Review logs for page/batch status.
+- Verify selected pipeline in `main.py`.
+- Check checkpoint files and retry.
+
+---
+
+## Security notes
+
+- Never commit `.env`.
+- Never commit real client output data.
+- Keep `output/` and `state/` excluded from git where applicable.
+
+---
+
+## Suggested next improvements
+
+1. Add CLI argument support (`--pipeline rest|soap`) to avoid editing `main.py` each run.
+2. Add optional date filters for incremental exports.
+3. Add direct CSV/XLSX export step for both outputs.
+4. Add tests for checkpoint and parser behavior.

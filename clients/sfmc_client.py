@@ -1,5 +1,7 @@
 import time
+import json
 import requests
+from pathlib import Path
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from config.settings import load_settings
@@ -12,6 +14,8 @@ _session = None
 _credentials = None
 _token = None
 _token_expiry = 0
+
+TOKEN_CACHE_FILE = Path("state/token_cache.json")
 
 def get_sfmc_session() -> requests.Session:
     global _session
@@ -56,19 +60,61 @@ def get_credentials():
     _credentials = (client_id, client_secret, subdomain, int(page_size))
     return _credentials
 
-def get_token():
+def _load_token_from_cache():
+    """Load token from disk if exists and still valid."""
+    global _token, _token_expiry
+    
+    if not TOKEN_CACHE_FILE.exists():
+        return False
+    
+    try:
+        with open(TOKEN_CACHE_FILE, "r") as f:
+            data = json.load(f)
+            _token = data.get("access_token")
+            _token_expiry = data.get("expiry", 0)
+            
+        if _token and time.time() < _token_expiry - 60:
+            logger.info("Token loaded from cache (reusing from previous run)")
+            return True
+    except Exception as e:
+        logger.warning(f"Failed to load token cache: {e}")
+    
+    return False
 
+
+def _save_token_to_cache(token: str, expiry: float):
+    """Save token to disk for reuse in future runs."""
+    global _token, _token_expiry
+    
+    try:
+        TOKEN_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(TOKEN_CACHE_FILE, "w") as f:
+            json.dump({"access_token": token, "expiry": expiry}, f)
+        logger.info("💾 Token saved to cache for future runs")
+    except Exception as e:
+        logger.warning(f"Failed to save token cache: {e}")
+
+
+def get_token():
     global _token, _token_expiry
 
+    # Check in-memory cache first
     if _token and time.time() < _token_expiry - 60:
         return _token
 
+    # Try to load from disk
+    if _load_token_from_cache():
+        return _token
+
+    # Fetch new token
     client_id, client_secret, subdomain, _ = get_credentials()
     
     session = get_sfmc_session()
 
     url = f"https://{subdomain}.auth.marketingcloudapis.com/v2/token"
 
+    logger.info("🔑 Fetching new token from SFMC...")
+    
     r = session.post(
         url,
         json={
@@ -83,12 +129,13 @@ def get_token():
     data = r.json()
 
     _token = data["access_token"]
-
     expires_in = data.get("expires_in", 1200)
-
     _token_expiry = time.time() + expires_in
 
-    logger.info("🔑 Token refreshed, valid for %ss", expires_in)
+    # Save to disk for future runs
+    _save_token_to_cache(_token, _token_expiry)
+
+    logger.info("Token refreshed, valid for %ss", expires_in)
 
     return _token
 
@@ -125,7 +172,7 @@ def rest_fetch(token, page=1):
     logger.info(f"Response status: {r.status_code} — page {page}")
     
     if r.status_code != 200:
-        logger.error(f"❌ Error response: {r.json()}")
+        logger.error(f"Error response: {r.json()}")
     r.raise_for_status()
 
     items = r.json().get("items", [])
